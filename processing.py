@@ -73,11 +73,16 @@ def map_values(width: float, height:float, angle:float) -> (float, float):
     steer: float
         the steering angle for the car
     """
-    width = int(round(width))
-    angle = int(round(angle))
+    # rounding to the nearest 5
+    width = int(5 * round(width/5))
+    angle = int(5 * round(angle/5))
 
     if angle in (0, 90, -0, -90):
         angle = 0
+
+    elif  15 < angle:
+        angle = - angle
+
     throttle = width / 110
     steer = angle / 90
 
@@ -119,4 +124,5 @@ def process_img(img: np.ndarray) -> (float, float):
     width = min(rect[1][1], rect[1][0])
     height = max(rect[1][1], rect[1][0])
     angle = rect[2]
-    return map_values(width, height, angle)
+    throttle, steer = map_values(width, height, angle)
+    return throttle, steer
