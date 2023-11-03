@@ -1,3 +1,3 @@
-- Some of form of calibration is needed to get the best results.
-- If the raod beginning is not high speed enough, the car will not move.
-- We need to make this driving stateful, so that it can remember the last state and make decisions based on that. This is needed specially when the car is turning.
+- Some form of calibration is needed to get the best results.
+- If the road beginning is not high speed enough, the car will not move.
+- We need to make this driving stateful so that it can remember the last state and make decisions based on that. This is needed especially when the car is turning.

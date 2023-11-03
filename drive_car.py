@@ -25,7 +25,7 @@ except OSError:
 # get state of the car
 car_state = client.getCarState()
 print(f"Speed {car_state.speed}, Gear {car_state.gear}")
-print(f"Car state: {car_state}")
+# print(f"Car state: {car_state}")
 
 # go forward
 car_controls.throttle = 0.5
@@ -46,22 +46,23 @@ while client.getCarState().speed > 0:
     # print('Retrieved images: %d' % len(responses))
     
     for response_idx, response in enumerate(responses):
-        filename = os.path.join(tmp_dir, f"angle_-10_speed_5_{idx}")
+        # filename = os.path.join(tmp_dir, f"angle_-10_speed_5_{idx}")
         # print("Type %d, size %d" % (response.image_type, len(response.image_data_uint8)))
         
         img1d = np.frombuffer(response.image_data_uint8, dtype=np.uint8) # get numpy array
         img_rgb = img1d.reshape(response.height, response.width, 3) # reshape array to 3 channel image array H X W X 3
         img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-        cv2.imwrite(os.path.normpath(filename + '.png'), img_rgb) # write to png
+        # cv2.imwrite(os.path.normpath(filename + '.png'), img_rgb) # write to png
         
         throttle, steer = process_img(img_gray)
+        print(f"Throttle: {throttle}, Steer: {steer}")
         car_controls.throttle = throttle
         car_controls.steering = steer
         client.setCarControls(car_controls)
         # print(f"Steer: {steer}, Throttle: {throttle}")
 
-    idx += 1
-    time.sleep(0.5)   # let car drive a bit
+    # idx += 1
+    # time.sleep(0.5)   # let car drive a bit
 
 
 
