@@ -58,14 +58,13 @@ def detect_correct_mark(img):
     rects = [cv2.minAreaRect(contour) for contour in contours]
     center_bottom = (img.shape[1] // 2, img.shape[0] // 1.5)
 
-    distances = [distance.euclidean(rect[0], center_bottom)
-                for rect in rects]
-    btm_cntr_rect_idx = np.argmin(distances)
+    distances = [distance.euclidean(rect[0], center_bottom) for rect in rects]
+    center_rect = rects[np.argmin(distances)]
 
-    return rects, btm_cntr_rect_idx
+    return center_rect
 
 
-def map_values(rect: tuple, img:np.array) -> (float, float):
+def map_values(rect: tuple, img: np.ndarray) -> tuple[float, float]:
     """
     Map the values for the steer to (-1, 1)
     and the values for the throttle to (0, 1)
@@ -81,13 +80,11 @@ def map_values(rect: tuple, img:np.array) -> (float, float):
     steer: float
         the steering angle for the car
     """
-    # A lot of work is still needed here
     center = rect[0]
     img_center = (img.shape[1] // 2, img.shape[0] // 1.5)
 
-    offset = center[0] - img_center[0] # offset from the center of the image
-    offset = offset / img_center[0] # normalize the offset
-
+    offset = center[0] - img_center[0]  # offset from the center of the image
+    offset = offset / img_center[0]  # normalize the offset
 
     d1 = rect[1][0]
     d2 = rect[1][1]
@@ -114,7 +111,7 @@ def map_values(rect: tuple, img:np.array) -> (float, float):
     return throttle, steer
 
 
-def process_img(img: np.ndarray) -> (float, float):
+def process_img(img: np.ndarray) -> tuple[float, float]:
     """
     Process image to find the angle and width of the rectangle in the image
 
@@ -138,14 +135,14 @@ def process_img(img: np.ndarray) -> (float, float):
     img_canny = apply_dilation(img_canny)
 
     lines = detect_hough_lines(img_canny.copy())
-    
+
     if lines is None:
-        return 0.5, 0
-    
+        return 0, 0
+
     img_hou = np.zeros((img_h, img_w), dtype=np.uint8)
     draw_hough_lines(img_hou, lines)
 
-    rects, bottom_center_rect_idx = detect_correct_mark(img_hou)
+    center_rect = detect_correct_mark(img_hou)
 
-    throttle, steer = map_values(rects[bottom_center_rect_idx], img_hou)
+    throttle, steer = map_values(center_rect, img_hou)
     return throttle, steer

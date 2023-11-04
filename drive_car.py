@@ -1,11 +1,11 @@
 import airsim
 import cv2
 import numpy as np
-import os
 import time
-import tempfile
+import asyncio
 
 from processing import process_img
+from save_images import save_img
 
 # connect to the AirSim simulator
 client = airsim.CarClient()
@@ -14,13 +14,6 @@ client.enableApiControl(True)
 print(f"API Control enabled: {client.isApiControlEnabled()}")
 car_controls = airsim.CarControls()
 
-tmp_dir = os.path.join(tempfile.gettempdir(), "airsim_car")
-print(f"Saving images to {tmp_dir}")
-try:
-    os.makedirs(tmp_dir)
-except OSError:
-    if not os.path.isdir(tmp_dir):
-        raise
 
 # get state of the car
 car_state = client.getCarState()
@@ -33,42 +26,45 @@ car_controls.steering = 0
 client.setCarControls(car_controls)
 print("Go Forward")
 
-time.sleep(1) 
-
-idx = 0
-while client.getCarState().speed > 0:
-
-    # get camera images from the car
-    responses = client.simGetImages([airsim.ImageRequest("front_center", 
-                                                         airsim.ImageType.Scene, 
-                                                         False, 
-                                                         False)])  #scene vision image in uncompressed RGB array
-    # print('Retrieved images: %d' % len(responses))
-    
-    for response_idx, response in enumerate(responses):
-        # filename = os.path.join(tmp_dir, f"angle_-10_speed_5_{idx}")
-        # print("Type %d, size %d" % (response.image_type, len(response.image_data_uint8)))
-        
-        img1d = np.frombuffer(response.image_data_uint8, dtype=np.uint8) # get numpy array
-        img_rgb = img1d.reshape(response.height, response.width, 3) # reshape array to 3 channel image array H X W X 3
-        img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-        # cv2.imwrite(os.path.normpath(filename + '.png'), img_rgb) # write to png
-        
-        throttle, steer = process_img(img_gray)
-        print(f"Throttle: {throttle}, Steer: {steer}")
-        car_controls.throttle = throttle
-        car_controls.steering = steer
-        client.setCarControls(car_controls)
-        # print(f"Steer: {steer}, Throttle: {throttle}")
-
-    # idx += 1
-    # time.sleep(0.5)   # let car drive a bit
+time.sleep(1)
 
 
+async def main():
+    tasks = []
+    while client.getCarState().speed > 0:
+        # get camera images from the car
+        responses = client.simGetImages(
+            [airsim.ImageRequest("front_center", airsim.ImageType.Scene, False, False)]
+        )  # scene vision image in uncompressed RGB array
+        # print('Retrieved images: %d' % len(responses))
+
+        for response in responses:
+            # print("Type %d, size %d" % (response.image_type, len(response.image_data_uint8)))
+
+            img1d = np.frombuffer(
+                response.image_data_uint8, dtype=np.uint8
+            )  # get numpy array
+            img_rgb = img1d.reshape(
+                response.height, response.width, 3
+            )  # reshape array to 3 channel image array H X W X 3
+            img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+
+            # task = asyncio.create_task(save_img(img_rgb))
+            # tasks.append(task)
+
+            throttle, steer = process_img(img_gray)
+            print(f"Throttle: {throttle}, Steer: {steer}")
+            car_controls.throttle = throttle
+            car_controls.steering = steer
+            client.setCarControls(car_controls)
+
+        # await asyncio.sleep(0.5)   # let car drive a bit
+
+    await asyncio.gather(*tasks)
+    # restore to original state
+    client.reset()
+    client.enableApiControl(False)
 
 
-
-#restore to original state
-client.reset()
-
-client.enableApiControl(False)
+if __name__ == "__main__":
+    asyncio.run(main())
