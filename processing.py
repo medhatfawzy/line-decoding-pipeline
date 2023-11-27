@@ -8,50 +8,45 @@ def warp_img(img):
     img_h = img.shape[0]
     img_w = img.shape[1]
 
-    src = np.float32(
-        [[0, img_h], [1207, img_h], [0, img_h // 10], [img_w, img_h // 10]]
-    )
-    dst = np.float32([[569, img_h], [711, img_h], [0, 0], [img_w, 0]])
+    src = np.float32([[250, 250], [345, 250], [img_w, img_h], [0, img_h]])
+    dst = np.float32([[0, 0], [460, 0], [460, img_h], [0, img_h]])
 
-    M = cv2.getPerspectiveTransform(src, dst)  # The transformation matrix
 
-    img = img[500:(img_h), 0:img_w]  # Apply np slicing for ROI crop
-    img = cv2.warpPerspective(img, M, (img_w, img_h))  # Image warping
-    img = img[0 : img_h - 150, 350:900]
+    # src = np.float32([[0, img_h], [img_w, img_h], [0, img_h // 5], [img_w, img_h // 5]])
+    # dst = np.float32([[img_w//3, img_h], [img_w//2, img_h], [0, 0], [img_w, 0]])
+
+    
+    M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+    
+    # img = img[img_h//2:(img_h), :] # Apply np slicing for ROI crop
+    img = cv2.warpPerspective(img, M, (img_w, img_h)) # Image warping
+    # img = img[0:img_h, 0: img_w//10 + img_w//3]
     return img
 
-
-def apply_region_of_interest(img):
-    img_h = img.shape[0]
-    img_w = img.shape[1]
-
-    return img[500:(img_h), 0:img_w]
-
-
-def apply_gaussian_blur(img, kernel_size=(5, 5)):
+def apply_gaussian_blur(img, kernel_size=(9, 9)):
     return cv2.GaussianBlur(img, kernel_size, 0)
-
 
 def apply_canny_edge(img, low_threshold=100, high_threshold=200):
     return cv2.Canny(img, low_threshold, high_threshold)
 
-
 def apply_dilation(img, kernel_size=(3, 3)):
     return cv2.dilate(img, np.ones(kernel_size, np.uint8))
 
-
 def detect_hough_lines(img):
     return cv2.HoughLinesP(
-        img, rho=1, theta=np.pi / 180, threshold=20, minLineLength=2, maxLineGap=5
+        img, 
+        rho=1, 
+        theta=np.pi / 180, 
+        threshold=20, 
+        minLineLength=2, 
+        maxLineGap=5
     )
-
 
 def draw_hough_lines(img, lines):
     for line in lines:
         for x1, y1, x2, y2 in line:
             cv2.line(img, (x1, y1), (x2, y2), 255, 5)
     return img
-
 
 def detect_correct_mark(img):
     contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -64,7 +59,9 @@ def detect_correct_mark(img):
     return center_rect
 
 
-def map_values(rect: tuple, img: np.ndarray) -> tuple[float, float]:
+def map_values(
+    rect: tuple, img: np.ndarray, car_speed: float, car_steer: float
+) -> tuple[float, float]:
     """
     Map the values for the steer to (-1, 1)
     and the values for the throttle to (0, 1)
@@ -105,13 +102,13 @@ def map_values(rect: tuple, img: np.ndarray) -> tuple[float, float]:
     else:
         angle = -angle
 
-    throttle = width / 90
-    steer = angle / (100 + throttle * 500) + offset
+    throttle = max(width / (120 + car_steer), 0.4)  # A trial and error value
+    steer = angle / (90 + throttle * 100 + car_speed) + (offset) 
 
     return throttle, steer
 
 
-def process_img(img: np.ndarray) -> tuple[float, float]:
+def process_img(img: np.ndarray, car_speed, car_steer) -> tuple[float, float]:
     """
     Process image to find the angle and width of the rectangle in the image
 
@@ -128,21 +125,19 @@ def process_img(img: np.ndarray) -> tuple[float, float]:
         angle of the rectangle in the image representing the steering angle
     """
     img = warp_img(img)
+    img = apply_gaussian_blur(img)
+    img = apply_canny_edge(img)
+    img = apply_dilation(img)
     img_w, img_h = img.shape[1], img.shape[0]
-
-    img_blur = apply_gaussian_blur(img.copy())
-    img_canny = apply_canny_edge(img_blur)
-    img_canny = apply_dilation(img_canny)
-
-    lines = detect_hough_lines(img_canny.copy())
-
+    
+    lines = detect_hough_lines(img)
     if lines is None:
-        return 0, 0
-
+        return -1, 0
+    
     img_hou = np.zeros((img_h, img_w), dtype=np.uint8)
-    draw_hough_lines(img_hou, lines)
+    img_hou = draw_hough_lines(img_hou, lines)
 
     center_rect = detect_correct_mark(img_hou)
 
-    throttle, steer = map_values(center_rect, img_hou)
+    throttle, steer = map_values(center_rect, img_hou, car_speed, car_steer)
     return throttle, steer

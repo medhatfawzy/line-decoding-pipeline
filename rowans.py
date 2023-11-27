@@ -42,10 +42,17 @@ def ROI_color(image):
 
 
 def canny(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    blur = cv2.GaussianBlur(image, (5, 5), 0)
     canny = cv2.Canny(blur, 50, 150)
     return canny
+
+
+def pipeline(image):
+    img_preprocessed = image_preprocessing(image)
+    img_roi = ROI_color(img_preprocessed)
+    img_canny = canny(img_roi)
+    return img_canny
 
 
 for img in os.listdir("./imgs"):

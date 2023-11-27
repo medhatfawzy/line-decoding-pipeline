@@ -1,3 +1,4 @@
 - Some form of calibration is needed to get the best results.
 - If the road beginning is not high speed enough, the car will not move.
 - We need to make this driving stateful so that it can remember the last state and make decisions based on that. This is needed especially when the car is turning.
+- We should do a comparison of the performance of the pipeline at different speeds.
