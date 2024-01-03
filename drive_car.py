@@ -20,4 +20,4 @@ if __name__ == "__main__":
 
     # print(f"Car state: {car_state}")
     driver = Driver(client, car_controls)
-    driver.drive(save_input=True)
+    driver.drive(save_input=False)

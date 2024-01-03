@@ -25,7 +25,7 @@ class Driver:
         self.processor = IMG_Processor()
         self.processor.set_precessor(Algo_Processor())
 
-    def drive(self, save_input=False):
+    def drive(self, save_input: bool = False):
         """
         Drive the car in the simulator
 
@@ -37,14 +37,7 @@ class Driver:
 
         self.save_input = save_input
         if self.save_input:
-            self.img_counter = 0
-            self.tmp_dir = os.path.join(tempfile.gettempdir(), "airsim_car")
-            print(f"Saving images to {self.tmp_dir}")
-            try:
-                os.makedirs(self.tmp_dir)
-            except OSError:
-                if not os.path.isdir(self.tmp_dir):
-                    raise f"Could not create directory {self.tmp_dir}"
+            self._create_tmp_dir()
 
         self.car_controls.throttle = 1
         self.car_controls.steering = 0
@@ -53,25 +46,7 @@ class Driver:
         time.sleep(5)
 
         while self.client.getCarState().speed > 0:
-            # get camera images from the car
-            response = self.client.simGetImages(
-                [
-                    airsim.ImageRequest(
-                        "front_center", airsim.ImageType.Scene, False, False
-                    )
-                ]
-            )[
-                0
-            ]  # scene vision image in uncompressed RGB array
-
-            # print("Type %d, size %d" % (response.image_type, len(response.image_data_uint8)))
-
-            img = np.frombuffer(
-                response.image_data_uint8, dtype=np.uint8
-            )  # get numpy array
-            img = img.reshape(
-                response.height, response.width, 3
-            )  # reshape array to 3 channel image array H X W X 3
+            img = self._get_image()
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
             throttle, steer = self.processor.process_img(img_gray)
@@ -79,21 +54,47 @@ class Driver:
 
             if self.save_input:
                 self._save_image(img, throttle, steer)
+            self._send_control(steer, throttle)
 
-            if throttle < 0:
-                self.car_controls.brake = 1.0
-                self.car_controls.throttle = 0
-                self.car_controls.steering = 0
-                self.client.setCarControls(self.car_controls)
-                break
-            else:
-                self.car_controls.throttle = throttle
-                self.car_controls.steering = steer
-                self.client.setCarControls(self.car_controls)
+    def _send_control(self, steer, throttle):
+        """
+        Send the control to the car
 
-        # restore to original state
-        # client.reset()
-        self.client.enableApiControl(False)
+        Parameters
+        ----------
+        steer: float
+            the steering angle for the car
+        throttle: float
+            the throttle for the car
+        """
+        if throttle < 0:
+            self.car_controls.brake = 1.0
+            self.car_controls.throttle = 0
+            self.car_controls.steering = 0
+            self.client.setCarControls(self.car_controls)
+            # restore to original state
+            self.client.reset()
+            self.client.enableApiControl(False)
+            exit()
+        else:
+            self.car_controls.throttle = throttle
+            self.car_controls.steering = steer
+            self.client.setCarControls(self.car_controls)
+
+    def _get_image(self) -> np.ndarray:
+        """
+        Get the image from the car camera
+        """
+        # get camera images from the car
+        # scene vision image in uncompressed RGB array
+        response = self.client.simGetImages(
+            [airsim.ImageRequest("front_center", airsim.ImageType.Scene, False, False)]
+        )[0]
+        img = np.frombuffer(response.image_data_uint8, dtype=np.uint8)
+
+        # reshape array to 3 channel image array H X W X 3
+        img = img.reshape(response.height, response.width, 3)
+        return img
 
     def _save_image(self, img, throttle=None, steer=None):
         # img_name = f"curved_{self.img_counter}_{throttle:.2f}_{steer:.2f}.png"
@@ -101,6 +102,19 @@ class Driver:
         file_path = os.path.join(self.tmp_dir, img_name)
         cv2.imwrite(os.path.normpath(file_path), img)
         self.img_counter += 1
+
+    def _create_tmp_dir(self):
+        """
+        Create a temporary directory to save the images to
+        """
+        self.img_counter = 0
+        self.tmp_dir = os.path.join(tempfile.gettempdir(), "airsim_car")
+        print(f"Saving images to {self.tmp_dir}")
+        try:
+            os.makedirs(self.tmp_dir)
+        except OSError:
+            if not os.path.isdir(self.tmp_dir):
+                raise f"Could not create directory {self.tmp_dir}"
 
 
 class IMG_Processor:
@@ -140,7 +154,7 @@ class DL_Processor(IMG_Processor):
         return throttle, steer
 
     @staticmethod
-    def round_pred(pred, threshold=0):
+    def round_pred(pred, threshold: float = 0):
         if pred < 0.4 and pred > threshold:
             return 0.4
         elif pred < threshold:
@@ -169,8 +183,8 @@ class Algo_Processor(IMG_Processor):
             [
                 [0, IMAGE_H],
                 [IMAGE_W, IMAGE_H],
-                [int(IMAGE_W // 2.2), int(IMAGE_H // 1.7)],
-                [int(IMAGE_W // 1.8), int(IMAGE_H // 1.7)],
+                [IMAGE_W // 2.2, IMAGE_H // 1.7],
+                [IMAGE_W // 1.8, IMAGE_H // 1.7],
             ]
         )
         dst = np.float32(
@@ -243,10 +257,10 @@ class Algo_Processor(IMG_Processor):
         """
         center = rect[0]
 
-        offset = (
-            center[0] - self.center_bottom[0]
-        )  # offset from the center of the image
-        offset = offset / img.shape[1]  # normalize the offset
+        # offset from the center of the image
+        offset = center[0] - self.center_bottom[0]
+        # normalize the offset
+        offset = offset / img.shape[1]
 
         # print(f"Offset: {offset:.2f}")
         d1 = rect[1][0]
@@ -267,9 +281,11 @@ class Algo_Processor(IMG_Processor):
         else:
             angle = -angle
 
-        steer = angle / ((self.car_throttle + self.car_steer) * 100 + 90) + (offset * 2)  # A trial and error value
+        # A trial and error value
+        steer = angle / ((self.car_throttle + self.car_steer) * 100 + 90) + (offset * 2)
         steer = max(min(steer, 1), -1)
-        throttle = max(width / (120 + (np.abs(steer) * 50)), 0.3)  # A trial and error value
+        # A trial and error value
+        throttle = max(width / (120 + (np.abs(steer) * 50)), 0.3)
 
         self.car_throttle = throttle
         self.car_steer = steer
