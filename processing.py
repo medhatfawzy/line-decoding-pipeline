@@ -54,6 +54,7 @@ class Driver:
 
             if self.save_input:
                 self._save_image(img, throttle, steer)
+
             self._send_control(steer, throttle)
 
     def _send_control(self, steer, throttle):
@@ -114,7 +115,7 @@ class Driver:
             os.makedirs(self.tmp_dir)
         except OSError:
             if not os.path.isdir(self.tmp_dir):
-                raise f"Could not create directory {self.tmp_dir}"
+                raise OSError(f"Could not create directory {self.tmp_dir}")
 
 
 class IMG_Processor:
