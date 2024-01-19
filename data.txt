@@ -1,9 +1,0 @@
-width,angle,throttle,steer
-
-width: 90, angle: 0, throttle: 0.75, steer: -0.04
-width: 80, angle: 0, throttle: 0.67, steer: -0.04
-width: 75, angle: 0, throttle: 0.62, steer: 0.02
-width: 80, angle: 0, throttle: 0.67, steer: 0.01
-width: 90, angle: -5, throttle: 0.75, steer: 0.03
-width: 90, angle: -5, throttle: 0.75, steer: 0.02
-width: 85, angle: -5, throttle: 0.71, steer: 0.01
